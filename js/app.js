@@ -5,21 +5,12 @@ let currentCategory = 'all';
 let paperData = {};
 let flatpickrInstance = null;
 let isRangeMode = false;
-const defaultCategoryPreference = ['cs.CV', 'cs.CL'];
 let activeKeywords = []; // 存储激活的关键词
 let userKeywords = []; // 存储用户的关键词
 let activeAuthors = []; // 存储激活的作者
 let userAuthors = []; // 存储用户的作者
-
-function loadCategoryPreference() {
-  // 这里的值是在构建时从环境变量注入的
-  const categoriesFromEnv = "cs.CV";
-  if (categoriesFromEnv) {
-    const preferenceFromEnv = categoriesFromEnv.split(',').map(category => category.trim());
-    return preferenceFromEnv;
-  }
-  return defaultCategoryPreference;
-}
+let currentPaperIndex = 0; // 当前查看的论文索引
+let currentFilteredPapers = []; // 当前过滤后的论文列表
 
 // 加载用户的关键词设置
 function loadUserKeywords() {
@@ -307,8 +298,75 @@ function initEventListeners() {
   document.getElementById('closeModal').addEventListener('click', closeModal);
   
   document.querySelector('.paper-modal').addEventListener('click', (event) => {
-    if (event.target === document.querySelector('.paper-modal')) {
-      closeModal();
+    const modal = document.querySelector('.paper-modal');
+    const pdfContainer = modal.querySelector('.pdf-container');
+    
+    // 如果点击的是模态框背景
+    if (event.target === modal) {
+      // 检查PDF是否处于放大状态
+      if (pdfContainer && pdfContainer.classList.contains('expanded')) {
+        // 如果PDF是放大的，先将其恢复正常大小
+        const expandButton = modal.querySelector('.pdf-expand-btn');
+        if (expandButton) {
+          togglePdfSize(expandButton);
+        }
+        // 阻止事件继续传播，防止关闭整个模态框
+        event.stopPropagation();
+      } else {
+        // 如果PDF不是放大状态，则关闭整个模态框
+        closeModal();
+      }
+    }
+  });
+  
+  // 添加键盘事件监听 - Esc 键关闭模态框，左右箭头键切换论文，R 键显示随机论文
+  document.addEventListener('keydown', (event) => {
+    // 检查是否有输入框或文本区域处于焦点状态
+    const activeElement = document.activeElement;
+    const isInputFocused = activeElement && (
+      activeElement.tagName === 'INPUT' || 
+      activeElement.tagName === 'TEXTAREA' || 
+      activeElement.isContentEditable
+    );
+    
+    if (event.key === 'Escape') {
+      const paperModal = document.getElementById('paperModal');
+      const datePickerModal = document.getElementById('datePickerModal');
+      
+      // 关闭论文模态框
+      if (paperModal.classList.contains('active')) {
+        closeModal();
+      }
+      // 关闭日期选择器模态框
+      else if (datePickerModal.classList.contains('active')) {
+        toggleDatePicker();
+      }
+    }
+    // 左右箭头键导航论文（仅在论文模态框打开时）
+    else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      const paperModal = document.getElementById('paperModal');
+      if (paperModal.classList.contains('active')) {
+        event.preventDefault(); // 防止页面滚动
+        
+        if (event.key === 'ArrowLeft') {
+          navigateToPreviousPaper();
+        } else if (event.key === 'ArrowRight') {
+          navigateToNextPaper();
+        }
+      }
+    }
+    // space 键显示随机论文（在没有输入框焦点且日期选择器未打开时）
+    else if (event.key === ' ' || event.key === 'Spacebar') {
+      const paperModal = document.getElementById('paperModal');
+      const datePickerModal = document.getElementById('datePickerModal');
+      
+      // 只有在没有输入框焦点且日期选择器没有打开时才触发
+      // 现在允许在论文模态框打开时也能使用R键切换到随机论文
+      if (!isInputFocused && !datePickerModal.classList.contains('active')) {
+        event.preventDefault(); // 防止页面刷新
+        event.stopPropagation(); // 阻止事件冒泡
+        showRandomPaper();
+      }
     }
   });
   
@@ -473,12 +531,6 @@ async function loadPapersByDate(date) {
   `;
   
   try {
-    const updatedPreference = loadCategoryPreference();
-    if (updatedPreference && updatedPreference.length > 0) {
-      defaultCategoryPreference.length = 0;
-      updatedPreference.forEach(category => defaultCategoryPreference.push(category));
-    }
-    
     const response = await fetch(`data/${date}_AI_enhanced_Chinese.jsonl`);
     const text = await response.text();
     
@@ -556,13 +608,7 @@ function getAllCategories(data) {
   
   return {
     sortedCategories: categories.sort((a, b) => {
-      const indexA = defaultCategoryPreference.indexOf(a);
-      const indexB = defaultCategoryPreference.indexOf(b);
-      
-      const valueA = indexA === -1 ? defaultCategoryPreference.length : indexA;
-      const valueB = indexB === -1 ? defaultCategoryPreference.length : indexB;
-      
-      return valueA - valueB;
+      return a.localeCompare(b);
     }),
     categoryCounts: catePaperCount
   };
@@ -733,6 +779,9 @@ function renderPapers() {
     });
   }
   
+  // 存储当前过滤后的论文列表，用于箭头键导航
+  currentFilteredPapers = [...filteredPapers];
+  
   if (filteredPapers.length === 0) {
     container.innerHTML = `
       <div class="loading-container">
@@ -792,25 +841,32 @@ function renderPapers() {
     `;
     
     paperCard.addEventListener('click', () => {
-      showPaperDetails(paper);
+      currentPaperIndex = index; // 记录当前点击的论文索引
+      showPaperDetails(paper, index + 1);
     });
     
     container.appendChild(paperCard);
   });
 }
 
-function showPaperDetails(paper) {
+function showPaperDetails(paper, paperIndex) {
   const modal = document.getElementById('paperModal');
   const modalTitle = document.getElementById('modalTitle');
   const modalBody = document.getElementById('modalBody');
   const paperLink = document.getElementById('paperLink');
+  const pdfLink = document.getElementById('pdfLink');
+  const htmlLink = document.getElementById('htmlLink');
+  
+  // 重置模态框的滚动位置
+  modalBody.scrollTop = 0;
   
   // 高亮标题中的关键词
   const highlightedTitle = activeKeywords.length > 0 
     ? highlightMatches(paper.title, activeKeywords, 'keyword-highlight') 
     : paper.title;
   
-  modalTitle.innerHTML = highlightedTitle;
+  // 在标题前添加索引号
+  modalTitle.innerHTML = paperIndex ? `<span class="paper-index-badge">${paperIndex}</span> ${highlightedTitle}` : highlightedTitle;
   
   const abstractText = paper.details || '';
   
@@ -851,78 +907,141 @@ function showPaperDetails(paper) {
   // 判断是否需要显示高亮说明
   const showHighlightLegend = activeKeywords.length > 0 || activeAuthors.length > 0;
   
-  // 创建高亮说明HTML
-  let highlightLegendHTML = '';
-  if (showHighlightLegend) {
-    highlightLegendHTML = `
-      <div class="highlight-info">
-        ${activeKeywords.length > 0 ? `
-          <span>
-            <div class="sample keyword-sample"></div>
-            Keywords: ${activeKeywords.join(', ')}
-          </span>
-        ` : ''}
-        ${activeAuthors.length > 0 ? `
-          <span>
-            <div class="sample author-sample"></div>
-            Authors: ${activeAuthors.join(', ')}
-          </span>
-        ` : ''}
-      </div>
-    `;
-  }
-  
   // 添加匹配标记
   const matchedPaperClass = paper.isMatched ? 'matched-paper-details' : '';
   
-  // 创建匹配信息HTML
-  let matchInfoHTML = '';
-  if (paper.isMatched && paper.matchReason) {
-    matchInfoHTML = `
-      <div class="match-info">
-        <div class="match-star-icon"></div>
-        <div class="match-details">
-          <h4>匹配信息</h4>
-          <p>${paper.matchReason.join('<br>')}</p>
-        </div>
-      </div>
-    `;
-  }
-  
-  modalBody.innerHTML = `
+  const modalContent = `
     <div class="paper-details ${matchedPaperClass}">
-      ${paper.isMatched ? '<div class="match-indicator">匹配论文</div>' : ''}
-      <p><strong>作者: </strong>${highlightedAuthors}</p>
-      <p><strong>分类: </strong>${categoryDisplay}</p>
-      <p><strong>日期: </strong>${formatDate(paper.date)}</p>
+      <p><strong>Authors: </strong>${highlightedAuthors}</p>
+      <p><strong>Categories: </strong>${categoryDisplay}</p>
+      <p><strong>Date: </strong>${formatDate(paper.date)}</p>
       
-      ${paper.isMatched ? matchInfoHTML : ''}
       
-      ${showHighlightLegend ? highlightLegendHTML : ''}
-      
-      <h3>摘要</h3>
+      <h3>TL;DR</h3>
       <p>${highlightedSummary}</p>
       
       <div class="paper-sections">
-        ${paper.motivation ? `<div class="paper-section"><h4>研究动机</h4><p>${highlightedMotivation}</p></div>` : ''}
-        ${paper.method ? `<div class="paper-section"><h4>研究方法</h4><p>${highlightedMethod}</p></div>` : ''}
-        ${paper.result ? `<div class="paper-section"><h4>研究结果</h4><p>${highlightedResult}</p></div>` : ''}
-        ${paper.conclusion ? `<div class="paper-section"><h4>研究结论</h4><p>${highlightedConclusion}</p></div>` : ''}
+        ${paper.motivation ? `<div class="paper-section"><h4>Motivation</h4><p>${highlightedMotivation}</p></div>` : ''}
+        ${paper.method ? `<div class="paper-section"><h4>Method</h4><p>${highlightedMethod}</p></div>` : ''}
+        ${paper.result ? `<div class="paper-section"><h4>Result</h4><p>${highlightedResult}</p></div>` : ''}
+        ${paper.conclusion ? `<div class="paper-section"><h4>Conclusion</h4><p>${highlightedConclusion}</p></div>` : ''}
       </div>
       
-      ${highlightedAbstract ? `<h3>原文摘要</h3><p class="original-abstract">${highlightedAbstract}</p>` : ''}
+      ${highlightedAbstract ? `<h3>Abstract</h3><p class="original-abstract">${highlightedAbstract}</p>` : ''}
+      
+      <div class="pdf-preview-section">
+        <div class="pdf-header">
+          <h3>PDF Preview</h3>
+          <button class="pdf-expand-btn" onclick="togglePdfSize(this)">
+            <svg class="expand-icon" viewBox="0 0 24 24" width="24" height="24">
+              <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+            </svg>
+            <svg class="collapse-icon" viewBox="0 0 24 24" width="24" height="24" style="display: none;">
+              <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
+            </svg>
+          </button>
+        </div>
+        <div class="pdf-container">
+          <iframe src="${paper.url.replace('abs', 'pdf')}" width="100%" height="800px" frameborder="0"></iframe>
+        </div>
+      </div>
     </div>
   `;
   
-  paperLink.href = paper.url || `https://arxiv.org/abs/${paper.id}` || "https://arxiv.org/";
+  // Update modal content
+  document.getElementById('modalBody').innerHTML = modalContent;
+  document.getElementById('paperLink').href = paper.url;
+  document.getElementById('pdfLink').href = paper.url.replace('abs', 'pdf');
+  document.getElementById('htmlLink').href = paper.url.replace('abs', 'html');
+  // 提示词来自：https://papers.cool/
+  prompt = `请你阅读这篇文章${paper.url.replace('abs', 'pdf')},总结一下这篇文章解决的问题、相关工作、研究方法、做了什么实验及其结果、结论，最后整体总结一下这篇文章的内容`
+  document.getElementById('kimiChatLink').href = `https://www.kimi.com/_prefill_chat?prefill_prompt=${prompt}&system_prompt=你是一个学术助手，后面的对话将围绕着以下论文内容进行，已经通过链接给出了论文的PDF和论文已有的FAQ。用户将继续向你咨询论文的相关问题，请你作出专业的回答，不要出现第一人称，当涉及到分点回答时，鼓励你以markdown格式输出。&send_immediately=true&force_search=false`;
+  
+  // 更新论文位置信息
+  const paperPosition = document.getElementById('paperPosition');
+  if (paperPosition && currentFilteredPapers.length > 0) {
+    paperPosition.textContent = `${currentPaperIndex + 1} / ${currentFilteredPapers.length}`;
+  }
   
   modal.classList.add('active');
   document.body.style.overflow = 'hidden';
 }
 
 function closeModal() {
-  document.getElementById('paperModal').classList.remove('active');
+  const modal = document.getElementById('paperModal');
+  const modalBody = document.getElementById('modalBody');
+  
+  // 重置模态框的滚动位置
+  modalBody.scrollTop = 0;
+  
+  modal.classList.remove('active');
   document.body.style.overflow = '';
+}
+
+// 导航到上一篇论文
+function navigateToPreviousPaper() {
+  if (currentFilteredPapers.length === 0) return;
+  
+  currentPaperIndex = currentPaperIndex > 0 ? currentPaperIndex - 1 : currentFilteredPapers.length - 1;
+  const paper = currentFilteredPapers[currentPaperIndex];
+  showPaperDetails(paper, currentPaperIndex + 1);
+}
+
+// 导航到下一篇论文
+function navigateToNextPaper() {
+  if (currentFilteredPapers.length === 0) return;
+  
+  currentPaperIndex = currentPaperIndex < currentFilteredPapers.length - 1 ? currentPaperIndex + 1 : 0;
+  const paper = currentFilteredPapers[currentPaperIndex];
+  showPaperDetails(paper, currentPaperIndex + 1);
+}
+
+// 显示随机论文
+function showRandomPaper() {
+  // 检查是否有可用的论文
+  if (currentFilteredPapers.length === 0) {
+    console.log('No papers available to show random paper');
+    return;
+  }
+  
+  // 生成随机索引
+  const randomIndex = Math.floor(Math.random() * currentFilteredPapers.length);
+  const randomPaper = currentFilteredPapers[randomIndex];
+  
+  // 更新当前论文索引
+  currentPaperIndex = randomIndex;
+  
+  // 显示随机论文
+  showPaperDetails(randomPaper, currentPaperIndex + 1);
+  
+  // 显示随机论文指示器
+  showRandomPaperIndicator();
+  
+  console.log(`Showing random paper: ${randomIndex + 1}/${currentFilteredPapers.length}`);
+}
+
+// 显示随机论文指示器
+function showRandomPaperIndicator() {
+  // 移除已存在的指示器
+  const existingIndicator = document.querySelector('.random-paper-indicator');
+  if (existingIndicator) {
+    existingIndicator.remove();
+  }
+  
+  // 创建新的指示器
+  const indicator = document.createElement('div');
+  indicator.className = 'random-paper-indicator';
+  indicator.textContent = 'Random Paper';
+  
+  // 添加到页面
+  document.body.appendChild(indicator);
+  
+  // 3秒后自动移除
+  setTimeout(() => {
+    if (indicator && indicator.parentNode) {
+      indicator.remove();
+    }
+  }, 3000);
 }
 
 function toggleDatePicker() {
@@ -1030,4 +1149,42 @@ function clearAllAuthors() {
   renderAuthorTags();
   // 重新渲染论文列表，移除作者匹配的高亮和优先排序
   renderPapers();
+}
+
+// 切换PDF预览器大小
+function togglePdfSize(button) {
+  const pdfContainer = button.closest('.pdf-preview-section').querySelector('.pdf-container');
+  const iframe = pdfContainer.querySelector('iframe');
+  const expandIcon = button.querySelector('.expand-icon');
+  const collapseIcon = button.querySelector('.collapse-icon');
+  
+  if (pdfContainer.classList.contains('expanded')) {
+    // 恢复正常大小
+    pdfContainer.classList.remove('expanded');
+    iframe.style.height = '800px';
+    expandIcon.style.display = 'block';
+    collapseIcon.style.display = 'none';
+    
+    // 移除遮罩层
+    const overlay = document.querySelector('.pdf-overlay');
+    if (overlay) {
+      overlay.remove();
+    }
+  } else {
+    // 放大显示
+    pdfContainer.classList.add('expanded');
+    iframe.style.height = '90vh';
+    expandIcon.style.display = 'none';
+    collapseIcon.style.display = 'block';
+    
+    // 添加遮罩层
+    const overlay = document.createElement('div');
+    overlay.className = 'pdf-overlay';
+    document.body.appendChild(overlay);
+    
+    // 点击遮罩层时收起PDF
+    overlay.addEventListener('click', () => {
+      togglePdfSize(button);
+    });
+  }
 }

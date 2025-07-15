@@ -1,13 +1,26 @@
-# About
-This tool will daily crawl https://arxiv.org and use LLMs to summarize them.
+# 🚀 daily-arXiv-ai-enhanced
 
-Try in: https://dw-dengwei.github.io/daily-arXiv-ai-enhanced/
+> Your AI-powered daily digest of arXiv papers - making research reading smarter and more personalized!
 
-# Features
-- Using the free features of GitHub Actions and GitHub Pages, **no server is required**
-- Crawling data starts at dawn every day, and using DeepSeek to summarize. This period is during the off-peak discount period of DeepSeek, and it only costs about 0.2 CNY per day. 
-- Provides a GitHub Pages front-end interface, uses LocalStorage to store **personalized preference** information (such as keywords and authors of interest), and highlights papers that matches the preferences.
-- GitHub Pages takes into account the display effects of both the computer and mobile devices, ensuring that papers can be easily reviewed on mobile devices
+This innovative tool transforms how you stay updated with arXiv papers by combining automated crawling with AI-powered summarization.
+
+## ✨ Key Features
+
+🎯 **Zero Infrastructure Required**
+- Leverages GitHub Actions and Pages - no server needed
+- Completely free to deploy and use
+
+🤖 **Smart AI Summarization**
+- Daily paper crawling with DeepSeek-powered summaries
+- Cost-effective: Only ~0.2 CNY per day during off-peak hours
+
+💫 **Smart Reading Experience**
+- Personalized paper highlighting based on your interests
+- Cross-device compatibility (desktop & mobile)
+- Local preference storage for privacy
+- Flexible date range filtering
+
+👉 **[Try it now!](https://dw-dengwei.github.io/daily-arXiv-ai-enhanced/)** - No installation required
 
 # Screenshots
 - Main page. Highlight the interested keywords and authors.
@@ -62,7 +75,7 @@ Otherwise, you can directly use this repo in https://dw-dengwei.github.io/daily-
 - [x] Update instructions for fork users about how to use GitHub Pages.
 
 # Contributors
-Thanks to the following special contributors for this project!!!
+Thanks to the following special contributors for contributing code, discovering bugs, and sharing useful ideas for this project!!!
 <table>
   <tbody>
     <tr>
@@ -71,6 +84,15 @@ Thanks to the following special contributors for this project!!!
       </td>
       <td align="center" valign="top">
         <a href="https://github.com/Chi-hong22"><img src="https://avatars.githubusercontent.com/u/75403952?v=4" width="100px;" alt="Chi-hong22"/><br /><sub><b>Chi-hong22</b></sub></a><br />
+      </td>
+      <td align="center" valign="top">
+        <a href="https://github.com/chaozg"><img src="https://avatars.githubusercontent.com/u/69794131?v=4" width="100px;" alt="chaozg"/><br /><sub><b>chaozg</b></sub></a><br />
+      </td>
+      <td align="center" valign="top">
+        <a href="https://github.com/quantum-ctrl"><img src="https://avatars.githubusercontent.com/u/16505311?v=4" width="100px;" alt="quantum-ctrl"/><br /><sub><b>quantum-ctrl</b></sub></a><br />
+      </td>
+      <td align="center" valign="top">
+        <a href="https://github.com/Zhao2z"><img src="https://avatars.githubusercontent.com/u/141019403?v=4" width="100px;" alt="Zhao2z"/><br /><sub><b>Zhao2z</b></sub></a><br />
       </td>
     </tr>
   </tbody>
@@ -88,10 +110,10 @@ We sincerely thank the following individuals and organizations for their promoti
         <a href="https://x.com/aigclink/status/1930897858963853746"><img src="https://pbs.twimg.com/profile_images/1729450995850027008/gllXr6bh_400x400.jpg" width="100px;" alt="AIGCLINK"/><br /><sub><b>AIGCLINK</b></sub></a><br />
       </td>
       <td align="center" valign="top">
-        <a href="https://www.ruanyifeng.com/blog/2025/06/weekly-issue-353.html"><img src="https://avatars.githubusercontent.com/u/905434" width="100px;" alt="阮一峰的网络日志"/><br /><sub><b>阮一峰的网络日志 <br> 科技爱好者周刊（第 353 期）</b></sub></a><br />
+        <a href="https://www.ruanyifeng.com/blog/2025/06/weekly-issue-353.html"><img src="https://avatars.githubusercontent.com/u/905434" width="100px;" alt="阮一峰的网络日志"/><br /><sub><b>阮一峰的网络日志 <br> 科技爱好者周刊 <br> （第 353 期）</b></sub></a><br />
       </td>
       <td align="center" valign="top">
-        <a href="https://hellogithub.com/periodical/volume/111"><img src="https://github.com/user-attachments/assets/eff6b6dd-0323-40c4-9db6-444a51bbc80a" width="100px;" alt="《HelloGitHub》第 111 期"/><br /><sub><b>《HelloGitHub》月刊 <br> 第 111 期</b></sub></a><br />
+        <a href="https://hellogithub.com/periodical/volume/111"><img src="https://github.com/user-attachments/assets/eff6b6dd-0323-40c4-9db6-444a51bbc80a" width="100px;" alt="《HelloGitHub》第 111 期"/><br /><sub><b>《HelloGitHub》<br> 月刊第 111 期</b></sub></a><br />
       </td>
     </tr>
   </tbody>
